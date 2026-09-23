@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>INNO FESTIVAL — Digital Halloween Photo Booth</title>
+<style>
+:root{
+  --bg:#0b0713; --bg2:#150c24; --card:rgba(255,255,255,.05); --card-b:rgba(255,140,0,.25);
+  --orange:#ff8c1a; --purple:#9b5cff; --green:#7cffb2; --red:#ff5c7a; --text:#f3ecff; --muted:#b7a9d6;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;
+}
+*{box-sizing:inherit; margin:0; padding:0;}
+html{scroll-padding-top:var(--safe-t); height:100%;}
+body{
+  min-height:100%; background:radial-gradient(ellipse at 50% -10%, #2a1440 0%, var(--bg) 55%), var(--bg);
+  color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  padding-top:var(--safe-t); padding-bottom:var(--safe-b); overflow-x:hidden;
+}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001s !important; transition-duration:.001s !important;} }
+
+#decor{position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden;}
+.ghost,.bat{position:absolute; font-size:2rem; opacity:.5; filter:drop-shadow(0 0 8px var(--purple));}
+.ghost{animation:float 14s linear infinite;}
+.bat{animation:fly 10s linear infinite; font-size:1.4rem;}
+@keyframes float{0%{transform:translate(-10vw,90vh);}100%{transform:translate(110vw,-10vh);}}
+@keyframes fly{0%{transform:translate(-10vw,20vh) rotate(-5deg);}50%{transform:translate(55vw,10vh) rotate(5deg);}100%{transform:translate(110vw,25vh) rotate(-5deg);}}
+.moon{position:fixed; top:6%; right:6%; width:70px; height:70px; border-radius:50%; background:#f4e9c9; box-shadow:0 0 40px 10px #f4e9c988; z-index:0;}
+
+main{position:relative; z-index:1; max-width:640px; margin:0 auto; padding:28px 18px 60px;}
+header.top{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+.brand{font-weight:800; letter-spacing:.5px; color:var(--orange);}
+.link-btn{background:none; border:1px solid var(--card-b); color:var(--muted); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:.85rem;}
+.link-btn:hover{color:var(--orange); border-color:var(--orange);}
+.link-btn:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{outline:2px solid var(--green); outline-offset:2px;}
+
+.hero{text-align:center; padding:26px 0 10px;}
+.hero-logo-wrap{display:flex; justify-content:center; align-items:center; margin-bottom:16px;}
+.hero-logo{display:block; width:min(260px, 60vw); max-width:260px; height:auto; filter:drop-shadow(0 0 14px rgba(155,92,255,.25)); background:transparent; border:none; border-radius:0; padding:0; image-rendering:auto;}
+.hero h1{font-size:clamp(2rem,8vw,3.2rem); background:linear-gradient(90deg,var(--orange),var(--purple)); -webkit-background-clip:text; background-clip:text; color:transparent; letter-spacing:1px;}
+.hero h2{font-weight:500; color:var(--muted); margin-top:4px; font-size:1.1rem;}
+.hero p{margin-top:12px; color:var(--text); opacity:.85; font-style:italic;}
+
+.card{background:var(--card); border:1px solid var(--card-b); border-radius:18px; padding:22px; margin-top:20px; backdrop-filter:blur(10px); box-shadow:0 0 30px -10px #000;}
+.card h3{color:var(--orange); margin-bottom:14px; font-size:1.15rem;}
+label{display:block; font-size:.85rem; color:var(--muted); margin:10px 0 6px;}
+input[type=text],input[type=password],textarea{
+  width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--card-b); background:#1a1129; color:var(--text); font-size:1rem;
+}
+textarea{resize:vertical; min-height:80px;}
+.btn{
+  display:inline-block; width:100%; margin-top:14px; padding:13px; border:none; border-radius:12px; font-weight:700; font-size:1rem; cursor:pointer;
+  background:linear-gradient(90deg,var(--orange),#ffb347); color:#20120a; box-shadow:0 0 18px -4px var(--orange); transition:transform .15s;
+}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(0);}
+.btn.secondary{background:transparent; border:1px solid var(--purple); color:var(--purple); box-shadow:none;}
+.btn.danger{background:linear-gradient(90deg,var(--red),#ff8a9d); color:#2a0710;}
+.btn.small{width:auto; padding:8px 14px; font-size:.85rem; margin:4px 4px 0 0;}
+.row{display:flex; gap:10px; flex-wrap:wrap;}
+.row .btn{flex:1;}
+
+.gallery{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-top:14px;}
+.gallery img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--card-b); cursor:pointer;}
+
+.stars{font-size:1.6rem; letter-spacing:4px; cursor:pointer; color:#544069;}
+.stars span.on{color:var(--orange);}
+
+.toast-wrap{position:fixed; top:calc(16px + var(--safe-t)); left:50%; transform:translateX(-50%); z-index:999; display:flex; flex-direction:column; gap:8px; width:min(90vw,380px);}
+.toast{padding:12px 16px; border-radius:10px; background:#1a1129; border-left:4px solid var(--orange); font-size:.9rem; animation:slidein .25s ease;}
+.toast.error{border-color:var(--red);} .toast.success{border-color:var(--green);}
+@keyframes slidein{from{opacity:0; transform:translateY(-10px);} to{opacity:1; transform:translateY(0);}}
+
+.modal-bg{position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; z-index:900; padding:20px;}
+.modal{background:var(--bg2); border:1px solid var(--card-b); border-radius:16px; padding:22px; max-width:480px; width:100%; max-height:85vh; overflow:auto;}
+.modal img{width:100%; border-radius:10px; margin:10px 0;}
+
+.hidden{display:none !important;}
+.small-text{font-size:.8rem; color:var(--muted); margin-top:10px; line-height:1.4;}
+footer{text-align:center; color:var(--muted); font-size:.8rem; padding:30px 0 10px;}
+
+#adminView{max-width:900px;}
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px;}
+.stat{background:var(--card); border:1px solid var(--card-b); border-radius:12px; padding:14px; text-align:center;}
+.stat b{display:block; font-size:1.6rem; color:var(--orange);}
+.nav-pills{display:flex; gap:8px; flex-wrap:wrap; margin:16px 0;}
+.pill{background:var(--card); border:1px solid var(--card-b); color:var(--muted); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:.85rem;}
+.pill.active{background:var(--orange); color:#20120a; border-color:var(--orange);}
+.session-item{border:1px solid var(--card-b); border-radius:12px; padding:14px; margin-bottom:10px; background:#150c24aa;}
+.session-item .idtag{color:var(--green); font-weight:700; font-family:monospace;}
+.fb-item{border-bottom:1px solid var(--card-b); padding:10px 0;}
+video#camPreview{width:100%; border-radius:10px; margin-top:10px; background:#000;}
+</style>
+</head>
+<body>
+<div id="decor" aria-hidden="true">
+  <div class="ghost" style="top:0;">👻</div>
+  <div class="ghost" style="top:0; animation-delay:5s;">👻</div>
+  <div class="bat" style="top:0; animation-delay:2s;">🦇</div>
+  <div class="bat" style="top:0; animation-delay:7s;">🦇</div>
+</div>
+<div class="moon" aria-hidden="true"></div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<main>
+  <header class="top">
+    <span class="brand">🎃 INNO FESTIVAL</span>
+    <button class="link-btn" id="adminLoginBtn">Admin Login</button>
+  </header>
+
+  <section id="publicView">
+    <div class="hero">
+      <div class="hero-logo-wrap">
+        <img src="nupe.png" alt="NU Logo" class="hero-logo">
+      </div>
+      <h1>INNO FESTIVAL</h1>
+      <h2>Digital Halloween Photo Booth</h2>
+      <p>Capture the moment. Keep the memory.</p>
+    </div>
+
+    <div class="card">
+      <h3>🔎 Enter Photo ID</h3>
+      <label for="photoIdInput">Your Photo ID (e.g. INF-2026-001)</label>
+      <input type="text" id="photoIdInput" placeholder="INF-2026-001" autocomplete="off">
+      <button class="btn" id="viewPhotoBtn">View Photo</button>
+      <p class="small-text">🔒 Photos are only accessible with the ID provided by the event team. Don't share your ID publicly.</p>
+    </div>
+
+    <div class="card">
+      <h3>💬 Give Feedback</h3>
+      <label for="fbName">Name (optional)</label>
+      <input type="text" id="fbName" placeholder="Your name">
+      <label for="fbId">Photo ID (optional)</label>
+      <input type="text" id="fbId" placeholder="INF-2026-001">
+      <label>Rating</label>
+      <div class="stars" id="stars" role="radiogroup" aria-label="Rating">★★★★★</div>
+      <label for="fbComment">Comments</label>
+      <textarea id="fbComment" placeholder="Tell us about your experience..."></textarea>
+      <button class="btn secondary" id="submitFbBtn">Submit Feedback</button>
+    </div>
+  </section>
+
+  <section id="adminLoginView" class="hidden">
+    <div class="hero"><h1 style="font-size:2rem;">Admin Login</h1></div>
+    <div class="card">
+      <label for="adminUser">Admin ID</label>
+      <input type="text" id="adminUser" placeholder="admin">
+      <label for="adminPass">Password</label>
+      <div class="row">
+        <input type="password" id="adminPass" placeholder="••••••••" style="flex:1;">
+        <button class="link-btn" id="togglePass" type="button">Show</button>
+      </div>
+      <button class="btn" id="doLoginBtn">Login</button>
+      <button class="btn secondary" id="backFromLoginBtn">Back</button>
+      <p class="small-text">Prototype credentials — replace with real auth before the event. See CONFIG in code.</p>
+    </div>
+  </section>
+
+  <section id="adminView" class="hidden">
+    <div class="hero" style="text-align:left; padding:10px 0;">
+      <h1 style="font-size:1.8rem;">Admin Dashboard</h1>
+    </div>
+    <div class="stats" id="statsRow"></div>
+    <div class="nav-pills">
+      <button class="pill active" data-tab="sessions">Photo Sessions</button>
+      <button class="pill" data-tab="feedback">Feedback</button>
+      <button class="link-btn" id="logoutBtn" style="margin-left:auto;">Logout</button>
+    </div>
+
+    <div id="tab-sessions">
+      <div class="card">
+        <div class="row">
+          <input type="text" id="searchInput" placeholder="Search by Photo ID or note...">
+          <button class="btn" id="newSessionBtn" style="max-width:200px;">+ New Session</button>
+        </div>
+      </div>
+      <div id="sessionList"></div>
+    </div>
+
+    <div id="tab-feedback" class="hidden">
+      <div class="card">
+        <input type="text" id="fbSearch" placeholder="Search feedback by Photo ID...">
+        <div id="feedbackList" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>INNO FESTIVAL · SLIIT Northern Uni · Digital Halloween Photo Booth</footer>
+</main>
+
+<div id="modalRoot"></div>
+
+<script>
+const DB = {
+  load(key, fallback){ try{ const v = localStorage.getItem(key); return v?JSON.parse(v):fallback; }catch(e){ return fallback; } },
+  save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ toast('Storage full or unavailable','error'); } }
+};
+let sessions = DB.load('inno_sessions', null);
+let feedbackList = DB.load('inno_feedback', null);
+if(sessions === null){
+  sessions = [
+    {id:'s1', photoId:'INF-2026-001', notes:'Group photo near pumpkin arch', photos:[], createdAt:Date.now()-90000000},
+    {id:'s2', photoId:'INF-2026-002', notes:'', photos:[], createdAt:Date.now()-40000000}
+  ];
+  DB.save('inno_sessions', sessions);
+}
+if(feedbackList === null){ feedbackList = []; DB.save('inno_feedback', feedbackList); }
+
+const CONFIG = { adminUser:'admin', adminPass:'Halloween2026' };
+
+function toast(msg, type='info'){
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastWrap').appendChild(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+function showModal(html){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="modal-bg" id="mbg"><div class="modal">${html}</div></div>`;
+  document.getElementById('mbg').addEventListener('click', e=>{ if(e.target.id==='mbg') closeModal(); });
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function confirmDialog(msg, onYes){
+  showModal(`<p>${msg}</p><div class="row" style="margin-top:16px;">
+    <button class="btn danger" id="cYes">Confirm</button>
+    <button class="btn secondary" id="cNo">Cancel</button></div>`);
+  document.getElementById('cYes').onclick = ()=>{ closeModal(); onYes(); };
+  document.getElementById('cNo').onclick = closeModal;
+}
+function genPhotoId(){
+  const year = new Date().getFullYear();
+  let n = sessions.length + 1;
+  let id;
+  do{ id = `INF-${year}-${String(n).padStart(3,'0')}`; n++; }while(sessions.some(s=>s.photoId===id));
+  return id;
+}
+function compressImage(file, maxW=900, cb){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.min(1, maxW/img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width*scale; canvas.height = img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      cb(canvas.toDataURL('image/jpeg',0.8));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showView(id){
+  ['publicView','adminLoginView','adminView'].forEach(v=>{
+    document.getElementById(v).classList.toggle('hidden', v!==id);
+  });
+}
+document.getElementById('adminLoginBtn').onclick = ()=>showView('adminLoginView');
+document.getElementById('backFromLoginBtn').onclick = ()=>showView('publicView');
+document.getElementById('logoutBtn').onclick = ()=>{ showView('publicView'); toast('Logged out','success'); };
+
+document.getElementById('viewPhotoBtn').onclick = ()=>{
+  const id = document.getElementById('photoIdInput').value.trim().toUpperCase();
+  const s = sessions.find(x=>x.photoId===id);
+  if(!s){ toast('Photo not found. Please check your Photo ID and try again.','error'); return; }
+  if(!s.photos.length){
+    showModal(`<h3>${s.photoId}</h3><p class="small-text">No photos uploaded yet for this session. Please check back later.</p>
+      <button class="btn secondary" id="mClose">Close</button>`);
+    document.getElementById('mClose').onclick = closeModal;
+    return;
+  }
+  const imgs = s.photos.map((p,i)=>`<img src="${p}" alt="Photo ${i+1}" data-i="${i}">`).join('');
+  showModal(`<h3>${s.photoId}</h3><div class="gallery">${imgs}</div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn" id="dlAll">Download All</button>
+      <button class="btn secondary" id="mClose2">Close</button>
+    </div>`);
+  document.getElementById('mClose2').onclick = closeModal;
+  document.getElementById('dlAll').onclick = ()=>{ s.photos.forEach((p,i)=>downloadDataUrl(p, `${s.photoId}_${i+1}.jpg`)); };
+  document.querySelectorAll('.gallery img').forEach(img=>{
+    img.onclick = ()=>{
+      showModal(`<img src="${img.src}"><div class="row"><button class="btn" id="dlOne">Download</button><button class="btn secondary" id="mClose3">Close</button></div>`);
+      document.getElementById('dlOne').onclick = ()=>downloadDataUrl(img.src, `${s.photoId}.jpg`);
+      document.getElementById('mClose3').onclick = closeModal;
+    };
+  });
+};
+function downloadDataUrl(dataUrl, name){
+  const a = document.createElement('a'); a.href = dataUrl; a.download = name; a.click();
+}
+
+let rating = 5;
+const starsEl = document.getElementById('stars');
+function renderStars(){
+  starsEl.innerHTML = '★★★★★'.split('').map((c,i)=>`<span class="${i<rating?'on':''}" data-i="${i+1}">★</span>`).join('');
+}
+renderStars();
+starsEl.onclick = e=>{ if(e.target.dataset.i){ rating = +e.target.dataset.i; renderStars(); } };
+
+document.getElementById('submitFbBtn').onclick = ()=>{
+  const entry = {
+    name: document.getElementById('fbName').value.trim(),
+    photoId: document.getElementById('fbId').value.trim().toUpperCase(),
+    rating, comment: document.getElementById('fbComment').value.trim(),
+    date: new Date().toLocaleString()
+  };
+  feedbackList.push(entry);
+  DB.save('inno_feedback', feedbackList);
+  document.getElementById('fbName').value='';
+  document.getElementById('fbId').value='';
+  document.getElementById('fbComment').value='';
+  rating = 5; renderStars();
+  toast('Thanks for your feedback! 🎃','success');
+};
+
+document.getElementById('togglePass').onclick = ()=>{
+  const p = document.getElementById('adminPass');
+  const show = p.type==='password';
+  p.type = show?'text':'password';
+  document.getElementById('togglePass').textContent = show?'Hide':'Show';
+};
+document.getElementById('doLoginBtn').onclick = ()=>{
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value;
+  const btn = document.getElementById('doLoginBtn');
+  btn.textContent = 'Logging in...'; btn.disabled = true;
+  setTimeout(()=>{
+    btn.textContent = 'Login'; btn.disabled = false;
+    if(u===CONFIG.adminUser && p===CONFIG.adminPass){
+      toast('Welcome, admin!','success');
+      renderDashboard();
+      showView('adminView');
+    } else {
+      toast('Invalid admin credentials','error');
+    }
+  }, 500);
+};
+
+document.querySelectorAll('.pill').forEach(p=>{
+  p.onclick = ()=>{
+    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    document.getElementById('tab-sessions').classList.toggle('hidden', p.dataset.tab!=='sessions');
+    document.getElementById('tab-feedback').classList.toggle('hidden', p.dataset.tab!=='feedback');
+    if(p.dataset.tab==='feedback') renderFeedback();
+  };
+});
+
+function renderDashboard(){
+  const totalPhotos = sessions.reduce((a,s)=>a+s.photos.length,0);
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><b>${sessions.length}</b>Total Sessions</div>
+    <div class="stat"><b>${totalPhotos}</b>Total Photos</div>
+    <div class="stat"><b>${feedbackList.length}</b>Feedback</div>
+    <div class="stat"><b>${sessions.slice(-1)[0]?.photoId||'—'}</b>Recent Session</div>`;
+  renderSessions();
+}
+function renderSessions(filter=''){
+  const list = document.getElementById('sessionList');
+  const f = filter.toLowerCase();
+  const filtered = sessions.filter(s=>!f || s.photoId.toLowerCase().includes(f) || s.notes.toLowerCase().includes(f));
+  if(!filtered.length){ list.innerHTML = '<p class="small-text">No sessions found.</p>'; return; }
+  list.innerHTML = filtered.map(s=>`
+    <div class="session-item">
+      <div class="idtag">${s.photoId}</div>
+      <div class="small-text">${s.notes||'No notes'} · ${s.photos.length} photo(s)</div>
+      <div class="row">
+        <button class="btn small" data-act="photos" data-id="${s.id}">View Photos</button>
+        <button class="btn small" data-act="take" data-id="${s.id}">Take Photo</button>
+        <button class="btn small" data-act="choose" data-id="${s.id}">Add Photo</button>
+        <button class="btn small secondary" data-act="notes" data-id="${s.id}">Edit / Delete Notes</button>
+        <button class="btn small secondary" data-act="id" data-id="${s.id}">Edit Photo ID</button>
+        <button class="btn small secondary" data-act="copy" data-id="${s.id}">Copy ID</button>
+        <button class="btn small danger" data-act="del" data-id="${s.id}">Delete</button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('button').forEach(b=>{ b.onclick = ()=>sessionAction(b.dataset.act, b.dataset.id); });
+}
+document.getElementById('searchInput').oninput = e=>renderSessions(e.target.value);
+document.getElementById('newSessionBtn').onclick = ()=>{
+  const s = { id:'s'+Date.now(), photoId:genPhotoId(), notes:'', photos:[], createdAt:Date.now() };
+  sessions.push(s); DB.save('inno_sessions', sessions);
+  toast(`Session created — Photo ID: ${s.photoId}`,'success');
+  renderDashboard();
+};
+
+function sessionAction(act, id){
+  const s = sessions.find(x=>x.id===id);
+  if(!s) return;
+  if(act==='copy'){ navigator.clipboard?.writeText(s.photoId); toast('Photo ID copied: '+s.photoId,'success'); }
+  else if(act==='photos'){
+    if(!s.photos.length){
+      showModal(`<h3>Photos — ${s.photoId}</h3><p class="small-text">No photos uploaded for this session.</p>
+        <button class="btn secondary" id="mClose">Close</button>`);
+      document.getElementById('mClose').onclick = closeModal;
+      return;
+    }
+    const renderPhotoManager = ()=>{
+      const items = s.photos.map((photo,i)=>`<div style="margin-top:12px;">
+        <img src="${photo}" alt="Photo ${i+1}" style="width:100%;border-radius:10px;">
+        <div class="row">
+          <button class="btn small" data-photo-act="replace" data-photo-index="${i}">Replace</button>
+          <button class="btn small danger" data-photo-act="delete" data-photo-index="${i}">Delete</button>
+        </div>
+      </div>`).join('');
+      showModal(`<h3>Manage Photos — ${s.photoId}</h3>${items}
+        <button class="btn secondary" id="mClose">Close</button>`);
+      document.querySelectorAll('[data-photo-act]').forEach(button=>{
+        button.onclick = ()=>{
+          const photoIndex = Number(button.dataset.photoIndex);
+          if(button.dataset.photoAct==='delete'){
+            confirmDialog(`Delete photo ${photoIndex+1} from ${s.photoId}?`, ()=>{
+              s.photos.splice(photoIndex,1); DB.save('inno_sessions', sessions);
+              closeModal(); renderSessions(); toast('Photo deleted','success');
+            });
+          } else {
+            showModal(`<h3>Replace Photo ${photoIndex+1} — ${s.photoId}</h3>
+              <input type="file" id="replaceFileInput" accept="image/jpeg,image/png,image/webp">
+              <div id="replacePreview"></div>
+              <button class="btn secondary" id="cancelReplace">Cancel</button>`);
+            document.getElementById('cancelReplace').onclick = closeModal;
+            document.getElementById('replaceFileInput').onchange = event=>{
+              const file = event.target.files[0]; if(!file) return;
+              compressImage(file, 900, dataUrl=>{
+                document.getElementById('replacePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
+                  <button class="btn" id="saveReplace">Save Replacement</button>`;
+                document.getElementById('saveReplace').onclick = ()=>{
+                  s.photos[photoIndex] = dataUrl; DB.save('inno_sessions', sessions);
+                  closeModal(); renderSessions(); toast('Photo replaced','success');
+                };
+              });
+            };
+          }
+        };
+      });
+      document.getElementById('mClose').onclick = closeModal;
+    };
+    renderPhotoManager();
+  }
+  else if(act==='notes'){
+    showModal(`<h3>Edit / Delete Notes — ${s.photoId}</h3><textarea id="notesArea">${s.notes}</textarea>
+      <div class="row" style="margin-top:12px;"><button class="btn" id="saveNotes">Save</button><button class="btn danger" id="deleteNotes">Delete Notes</button><button class="btn secondary" id="mClose">Cancel</button></div>`);
+    document.getElementById('mClose').onclick = closeModal;
+    document.getElementById('saveNotes').onclick = ()=>{
+      s.notes = document.getElementById('notesArea').value; DB.save('inno_sessions', sessions);
+      closeModal(); renderSessions(); toast('Notes saved','success');
+    };
+    document.getElementById('deleteNotes').onclick = ()=>{
+      confirmDialog(`Delete notes for ${s.photoId}?`, ()=>{
+        s.notes = ''; DB.save('inno_sessions', sessions);
+        closeModal(); renderSessions(); toast('Notes deleted','success');
+      });
+    };
+  }
+  else if(act==='id'){
+    showModal(`<h3>Edit Photo ID</h3><label for="photoIdArea">Unique Photo ID</label>
+      <input type="text" id="photoIdArea" value="${s.photoId}" autocomplete="off">
+      <div class="row" style="margin-top:12px;"><button class="btn" id="savePhotoId">Save ID</button><button class="btn secondary" id="mClose">Cancel</button></div>`);
+    document.getElementById('mClose').onclick = closeModal;
+    document.getElementById('savePhotoId').onclick = ()=>{
+      const newPhotoId = document.getElementById('photoIdArea').value.trim().toUpperCase();
+      if(!newPhotoId){ toast('Photo ID cannot be empty','error'); return; }
+      if(sessions.some(item=>item.id!==s.id && item.photoId===newPhotoId)){
+        toast('That Photo ID is already in use','error'); return;
+      }
+      s.photoId = newPhotoId; DB.save('inno_sessions', sessions);
+      closeModal(); renderDashboard(); toast('Photo ID updated','success');
+    };
+  }
+  else if(act==='del'){
+    confirmDialog(`Delete session ${s.photoId} and all its photos?`, ()=>{
+      sessions = sessions.filter(x=>x.id!==id); DB.save('inno_sessions', sessions);
+      renderDashboard(); toast('Session deleted','success');
+    });
+  }
+  else if(act==='choose'){
+    showModal(`<h3>Choose Photo — ${s.photoId}</h3><input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+      <div id="choosePreview"></div>`);
+    document.getElementById('fileInput').onchange = e=>{
+      const file = e.target.files[0]; if(!file) return;
+      compressImage(file, 900, dataUrl=>{
+        document.getElementById('choosePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
+          <div class="row"><button class="btn" id="saveChoose">Save</button><button class="btn secondary" id="cancelChoose">Cancel</button></div>`;
+        document.getElementById('saveChoose').onclick = ()=>{
+          s.photos.push(dataUrl); DB.save('inno_sessions', sessions);
+          closeModal(); renderSessions(); toast(`Photo Saved Successfully — Photo ID: ${s.photoId}`,'success');
+        };
+        document.getElementById('cancelChoose').onclick = closeModal;
+      });
+    };
+  }
+  else if(act==='take'){
+    showModal(`<h3>Take Photo — ${s.photoId}</h3><video id="camPreview" autoplay playsinline muted></video>
+      <div class="row" id="camControls">
+        <button class="btn" id="captureBtn">Capture</button>
+        <button class="btn" id="cancelCam">Cancel</button>
+      </div><div id="capturePreview"></div>`);
+    let stream;
+    navigator.mediaDevices?.getUserMedia({video:true}).then(str=>{
+      stream = str; document.getElementById('camPreview').srcObject = stream;
+    }).catch(()=>{
+      document.getElementById('camControls').outerHTML = `<p class="small-text">Camera unavailable (needs HTTPS/localhost and permission). Use "Choose Photo" instead.</p>`;
+    });
+    document.getElementById('cancelCam').onclick = ()=>{ stream?.getTracks().forEach(t=>t.stop()); closeModal(); };
+    document.getElementById('captureBtn').onclick = ()=>{
+      const v = document.getElementById('camPreview');
+      const canvas = document.createElement('canvas');
+      canvas.width = v.videoWidth||640; canvas.height = v.videoHeight||480;
+      canvas.getContext('2d').drawImage(v,0,0,canvas.width,canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg',0.85);
+      document.getElementById('capturePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
+        <div class="row"><button class="btn" id="confirmCap">Confirm/Save</button><button class="btn secondary" id="retakeCap">Retake</button></div>`;
+      document.getElementById('confirmCap').onclick = ()=>{
+        s.photos.push(dataUrl); DB.save('inno_sessions', sessions);
+        stream?.getTracks().forEach(t=>t.stop()); closeModal(); renderSessions();
+        toast(`Photo Saved Successfully — Photo ID: ${s.photoId}`,'success');
+      };
+      document.getElementById('retakeCap').onclick = ()=>{ document.getElementById('capturePreview').innerHTML=''; };
+    };
+  }
+}
+
+function renderFeedback(filter=''){
+  const f = filter.toLowerCase();
+  const list = feedbackList.filter(x=>!f || x.photoId.toLowerCase().includes(f));
+  const el = document.getElementById('feedbackList');
+  el.innerHTML = list.length ? list.map(x=>`
+    <div class="fb-item">
+      <b>${x.photoId||'—'}</b> · ${'★'.repeat(x.rating)}${'☆'.repeat(5-x.rating)} · <span class="small-text">${x.date}</span>
+      <div class="small-text">${x.name?('by '+x.name+' — '):''}${x.comment||'No comment'}</div>
+    </div>`).join('') : '<p class="small-text">No feedback yet.</p>';
+}
+document.getElementById('fbSearch').oninput = e=>renderFeedback(e.target.value);
+showView('publicView');
+</script>
+</body>
+</html>
