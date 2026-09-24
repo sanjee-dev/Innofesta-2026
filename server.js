@@ -35,6 +35,16 @@ app.use((req, res, next) => {
 });
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'vest.html')));
 app.use(express.static(__dirname));
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    cloudEnabled,
+    supabaseUrlConfigured: Boolean(supabaseUrl),
+    bucket: supabaseBucket,
+    frontendOriginConfigured: Boolean(frontendOrigin),
+    publicApiOriginConfigured: Boolean(publicApiOrigin)
+  });
+});
 
 const sessions = new Map();
 const adminUser = process.env.ADMIN_USER || 'admin';
