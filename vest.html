@@ -288,29 +288,26 @@ video#camPreview{width:100%; border-radius:10px; margin-top:10px; background:#00
 <div id="modalRoot"></div>
 
 <script>
-/* ============ DATA LAYER (prototype: localStorage) ============
-   Replace this section with real API calls (Supabase/Firebase) for production.
-   sessions: [{id, photoId, notes, photos:[dataURL,...], createdAt}]
-   feedback: [{name, photoId, rating, comment, date}]
-================================================================= */
-const DB = {
-  load(key, fallback){ try{ const v = localStorage.getItem(key); return v?JSON.parse(v):fallback; }catch(e){ return fallback; } },
-  save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ toast('Storage full or unavailable','error'); } }
-};
-let sessions = DB.load('inno_sessions', null);
-let feedbackList = DB.load('inno_feedback', null);
-if(sessions === null){
-  // sample data — remove before real event
-  sessions = [
-    {id:'s1', photoId:'INF-2026-001', notes:'Group photo near pumpkin arch', photos:[], createdAt:Date.now()-90000000},
-    {id:'s2', photoId:'INF-2026-002', notes:'', photos:[], createdAt:Date.now()-40000000}
-  ];
-  DB.save('inno_sessions', sessions);
+/* ============ DATA LAYER (server API) ============ */
+const API = '/api';
+let adminToken = '';
+let sessions = [];
+let feedbackList = [];
+async function api(path, options={}){
+  const headers = {'Content-Type':'application/json', ...(options.headers||{})};
+  if(adminToken) headers.Authorization = `Bearer ${adminToken}`;
+  const response = await fetch(API + path, {...options, headers});
+  const body = response.status === 204 ? null : await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(body?.error || 'Request failed');
+  return body;
 }
-if(feedbackList === null){ feedbackList = []; DB.save('inno_feedback', feedbackList); }
-
-// PROTOTYPE ADMIN CREDENTIALS — never store real production passwords in frontend JS.
-const CONFIG = { adminUser:'admin', adminPass:'Halloween2026' };
+async function loadAdminData(){
+  [sessions, feedbackList] = await Promise.all([api('/sessions'), api('/feedback')]);
+}
+async function saveSession(session){
+  const updated = await api(`/sessions/${session.id}`, {method:'PUT', body:JSON.stringify({photoId:session.photoId, notes:session.notes, photos:session.photos})});
+  Object.assign(session, updated);
+}
 
 /* ============ UTIL ============ */
 function toast(msg, type='info'){
@@ -364,13 +361,14 @@ function showView(id){
 }
 document.getElementById('adminLoginBtn').onclick = ()=>showView('adminLoginView');
 document.getElementById('backFromLoginBtn').onclick = ()=>showView('publicView');
-document.getElementById('logoutBtn').onclick = ()=>{ showView('publicView'); toast('Logged out','success'); };
+document.getElementById('logoutBtn').onclick = async ()=>{ await api('/auth/logout', {method:'POST'}).catch(()=>{}); adminToken=''; showView('publicView'); toast('Logged out','success'); };
 
 /* ============ PUBLIC: PHOTO LOOKUP ============ */
-document.getElementById('viewPhotoBtn').onclick = ()=>{
+document.getElementById('viewPhotoBtn').onclick = async ()=>{
   const id = document.getElementById('photoIdInput').value.trim().toUpperCase();
-  const s = sessions.find(x=>x.photoId===id);
-  if(!s){ toast('Photo not found. Please check your Photo ID and try again.','error'); return; }
+  let s;
+  try { s = await api(`/public/photos/${encodeURIComponent(id)}`); }
+  catch(e){ toast('Photo not found. Please check your Photo ID and try again.','error'); return; }
   if(!s.photos.length){
     showModal(`<h3>${s.photoId}</h3><p class="small-text">No photos uploaded yet for this session. Please check back later.</p>
       <button class="btn secondary" id="mClose">Close</button>`);
@@ -411,15 +409,15 @@ function renderStars(){
 renderStars();
 starsEl.onclick = e=>{ if(e.target.dataset.i){ rating = +e.target.dataset.i; renderStars(); } };
 
-document.getElementById('submitFbBtn').onclick = ()=>{
+document.getElementById('submitFbBtn').onclick = async ()=>{
   const entry = {
     name: document.getElementById('fbName').value.trim(),
     photoId: document.getElementById('fbId').value.trim().toUpperCase(),
     rating, comment: document.getElementById('fbComment').value.trim(),
     date: new Date().toLocaleString()
   };
-  feedbackList.push(entry);
-  DB.save('inno_feedback', feedbackList);
+  try { await api('/feedback', {method:'POST', body:JSON.stringify(entry)}); }
+  catch(e){ toast(e.message,'error'); return; }
   document.getElementById('fbName').value='';
   document.getElementById('fbId').value='';
   document.getElementById('fbComment').value='';
@@ -434,22 +432,18 @@ document.getElementById('togglePass').onclick = ()=>{
   p.type = show?'text':'password';
   document.getElementById('togglePass').textContent = show?'Hide':'Show';
 };
-document.getElementById('doLoginBtn').onclick = ()=>{
+document.getElementById('doLoginBtn').onclick = async ()=>{
   const u = document.getElementById('adminUser').value.trim();
   const p = document.getElementById('adminPass').value;
   const btn = document.getElementById('doLoginBtn');
   btn.textContent = 'Logging in...'; btn.disabled = true;
-  setTimeout(()=>{
-    btn.textContent = 'Login'; btn.disabled = false;
-    // Replace with real backend auth check for production.
-    if(u===CONFIG.adminUser && p===CONFIG.adminPass){
-      toast('Welcome, admin!','success');
-      renderDashboard();
-      showView('adminView');
-    } else {
-      toast('Invalid admin credentials','error');
-    }
-  }, 500);
+  try {
+    const result = await api('/auth/login', {method:'POST', body:JSON.stringify({user:u, password:p})});
+    adminToken = result.token;
+    await loadAdminData();
+    toast('Welcome, admin!','success'); renderDashboard(); showView('adminView');
+  } catch(e){ toast(e.message,'error'); }
+  finally { btn.textContent = 'Login'; btn.disabled = false; }
 };
 
 /* ============ ADMIN DASHBOARD ============ */
@@ -496,14 +490,14 @@ function renderSessions(filter=''){
   });
 }
 document.getElementById('searchInput').oninput = e=>renderSessions(e.target.value);
-document.getElementById('newSessionBtn').onclick = ()=>{
-  const s = { id:'s'+Date.now(), photoId:genPhotoId(), notes:'', photos:[], createdAt:Date.now() };
-  sessions.push(s); DB.save('inno_sessions', sessions);
-  toast(`Session created — Photo ID: ${s.photoId}`,'success');
-  renderDashboard();
+document.getElementById('newSessionBtn').onclick = async ()=>{
+  try {
+    const s = await api('/sessions', {method:'POST', body:JSON.stringify({photoId:genPhotoId(), notes:''})});
+    sessions.push(s); toast(`Session created — Photo ID: ${s.photoId}`,'success'); renderDashboard();
+  } catch(e){ toast(e.message,'error'); }
 };
 
-function sessionAction(act, id){
+async function sessionAction(act, id){
   const s = sessions.find(x=>x.id===id);
   if(!s) return;
   if(act==='copy'){ navigator.clipboard?.writeText(s.photoId); toast('Photo ID copied: '+s.photoId,'success'); }
@@ -528,8 +522,8 @@ function sessionAction(act, id){
         button.onclick = ()=>{
           const photoIndex = Number(button.dataset.photoIndex);
           if(button.dataset.photoAct==='delete'){
-            confirmDialog(`Delete photo ${photoIndex+1} from ${s.photoId}?`, ()=>{
-              s.photos.splice(photoIndex,1); DB.save('inno_sessions', sessions);
+            confirmDialog(`Delete photo ${photoIndex+1} from ${s.photoId}?`, async ()=>{
+              s.photos.splice(photoIndex,1); await saveSession(s);
               closeModal(); renderSessions(); toast('Photo deleted','success');
             });
           } else {
@@ -543,8 +537,8 @@ function sessionAction(act, id){
               compressImage(file, 900, dataUrl=>{
                 document.getElementById('replacePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
                   <button class="btn" id="saveReplace">Save Replacement</button>`;
-                document.getElementById('saveReplace').onclick = ()=>{
-                  s.photos[photoIndex] = dataUrl; DB.save('inno_sessions', sessions);
+                document.getElementById('saveReplace').onclick = async ()=>{
+                  s.photos[photoIndex] = dataUrl; await saveSession(s);
                   closeModal(); renderSessions(); toast('Photo replaced','success');
                 };
               });
@@ -560,13 +554,13 @@ function sessionAction(act, id){
     showModal(`<h3>Edit / Delete Notes — ${s.photoId}</h3><textarea id="notesArea">${s.notes}</textarea>
       <div class="row" style="margin-top:12px;"><button class="btn" id="saveNotes">Save</button><button class="btn danger" id="deleteNotes">Delete Notes</button><button class="btn secondary" id="mClose">Cancel</button></div>`);
     document.getElementById('mClose').onclick = closeModal;
-    document.getElementById('saveNotes').onclick = ()=>{
-      s.notes = document.getElementById('notesArea').value; DB.save('inno_sessions', sessions);
+    document.getElementById('saveNotes').onclick = async ()=>{
+      s.notes = document.getElementById('notesArea').value; await saveSession(s);
       closeModal(); renderSessions(); toast('Notes saved','success');
     };
     document.getElementById('deleteNotes').onclick = ()=>{
-      confirmDialog(`Delete notes for ${s.photoId}?`, ()=>{
-        s.notes = ''; DB.save('inno_sessions', sessions);
+      confirmDialog(`Delete notes for ${s.photoId}?`, async ()=>{
+        s.notes = ''; await saveSession(s);
         closeModal(); renderSessions(); toast('Notes deleted','success');
       });
     };
@@ -576,19 +570,19 @@ function sessionAction(act, id){
       <input type="text" id="photoIdArea" value="${s.photoId}" autocomplete="off">
       <div class="row" style="margin-top:12px;"><button class="btn" id="savePhotoId">Save ID</button><button class="btn secondary" id="mClose">Cancel</button></div>`);
     document.getElementById('mClose').onclick = closeModal;
-    document.getElementById('savePhotoId').onclick = ()=>{
+    document.getElementById('savePhotoId').onclick = async ()=>{
       const newPhotoId = document.getElementById('photoIdArea').value.trim().toUpperCase();
       if(!newPhotoId){ toast('Photo ID cannot be empty','error'); return; }
       if(sessions.some(item=>item.id!==s.id && item.photoId===newPhotoId)){
         toast('That Photo ID is already in use','error'); return;
       }
-      s.photoId = newPhotoId; DB.save('inno_sessions', sessions);
+      s.photoId = newPhotoId; await saveSession(s);
       closeModal(); renderDashboard(); toast('Photo ID updated','success');
     };
   }
   else if(act==='del'){
-    confirmDialog(`Delete session ${s.photoId} and all its photos?`, ()=>{
-      sessions = sessions.filter(x=>x.id!==id); DB.save('inno_sessions', sessions);
+    confirmDialog(`Delete session ${s.photoId} and all its photos?`, async ()=>{
+      await api(`/sessions/${id}`, {method:'DELETE'}); sessions = sessions.filter(x=>x.id!==id);
       renderDashboard(); toast('Session deleted','success');
     });
   }
@@ -600,8 +594,8 @@ function sessionAction(act, id){
       compressImage(file, 900, dataUrl=>{
         document.getElementById('choosePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
           <div class="row"><button class="btn" id="saveChoose">Save</button><button class="btn secondary" id="cancelChoose">Cancel</button></div>`;
-        document.getElementById('saveChoose').onclick = ()=>{
-          s.photos.push(dataUrl); DB.save('inno_sessions', sessions);
+        document.getElementById('saveChoose').onclick = async ()=>{
+          s.photos.push(dataUrl); await saveSession(s);
           closeModal(); renderSessions(); toast(`Photo Saved Successfully — Photo ID: ${s.photoId}`,'success');
         };
         document.getElementById('cancelChoose').onclick = closeModal;
@@ -635,8 +629,8 @@ function sessionAction(act, id){
       const dataUrl = canvas.toDataURL('image/jpeg',0.85);
       document.getElementById('capturePreview').innerHTML = `<img src="${dataUrl}" style="width:100%;border-radius:10px;margin-top:10px;">
         <div class="row"><button class="btn" id="confirmCap">Confirm/Save</button><button class="btn secondary" id="retakeCap">Retake</button></div>`;
-      document.getElementById('confirmCap').onclick = ()=>{
-        s.photos.push(dataUrl); DB.save('inno_sessions', sessions);
+      document.getElementById('confirmCap').onclick = async ()=>{
+        s.photos.push(dataUrl); await saveSession(s);
         stream?.getTracks().forEach(t=>t.stop()); closeModal(); renderSessions();
         toast(`Photo Saved Successfully — Photo ID: ${s.photoId}`,'success');
       };
