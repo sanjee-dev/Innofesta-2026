@@ -11,6 +11,8 @@ const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabaseBucket = process.env.SUPABASE_BUCKET || 'innofesta-photos';
 const cloudEnabled = Boolean(supabaseUrl && supabaseKey);
+const frontendOrigin = String(process.env.FRONTEND_ORIGIN || '').replace(/\/$/, '');
+const publicApiOrigin = String(process.env.PUBLIC_API_ORIGIN || '').replace(/\/$/, '');
 const dataDir = path.resolve(process.env.DATA_DIR || './data');
 const uploadDir = path.join(dataDir, 'uploads');
 if (!cloudEnabled) fs.mkdirSync(uploadDir, { recursive: true });
@@ -21,6 +23,16 @@ function saveDb() { fs.writeFileSync(dbFile, JSON.stringify(db, null, 2)); }
 
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (frontendOrigin && req.headers.origin === frontendOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', frontendOrigin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'vest.html')));
 app.use(express.static(__dirname));
 
@@ -34,7 +46,7 @@ function auth(req, res, next) {
 }
 function jsonSession(row, includePhotos = true) {
   const result = { id: row.id, photoId: row.photoId, notes: row.notes, createdAt: row.createdAt, photos: [] };
-  if (includePhotos) result.photos = row.photos.map(filename => `${basePath}/api/photos/${encodeURIComponent(filename)}?photoId=${encodeURIComponent(row.photoId)}`);
+  if (includePhotos) result.photos = row.photos.map(filename => `${publicApiOrigin}${basePath}/api/photos/${encodeURIComponent(filename)}?photoId=${encodeURIComponent(row.photoId)}`);
   return result;
 }
 function validPhotoId(value) { return /^[A-Z0-9][A-Z0-9_-]{2,63}$/.test(value); }
